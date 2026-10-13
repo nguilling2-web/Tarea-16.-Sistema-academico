@@ -1,86 +1,364 @@
-import views as c
+from shared.herramientas import (
+    imprimir_titulo, imprimir_exito, imprimir_error, imprimir_info, confirmar
+)
+from views import EstudianteController, MateriaController, MatriculaController
 
-def pedir_campos(campos, actual=None):
-    datos = {}
-    for campo in campos:
-        anterior = getattr(actual,campo,'') if actual else ''
-        valor = input(f'{campo} [{anterior}]: ' if actual else f'{campo}: ').strip()
-        if valor or not actual: datos[campo] = valor
-    return datos
+# Se crea UN solo controlador de cada tipo.
+# A matriculas se le pasan los MISMOS estudiantes y materias.
+estudiantes = EstudianteController()
+materias = MateriaController()
+matriculas = MatriculaController(estudiantes, materias)
 
-def pedir_id():
-    try: return int(input('ID: '))
+
+# =====================================================================
+# AYUDAS DE PANTALLA
+# =====================================================================
+
+def pausa():
+    input("\nPresione Enter para continuar...")
+
+
+def pedir_entero(etiqueta):
+    """Devuelve un entero o None si el usuario escribió otra cosa."""
+    try:
+        return int(input(etiqueta))
     except ValueError:
-        print('El ID debe ser entero')
         return None
 
-def mostrar_lista(objetos):
-    if not objetos: print('No hay registros')
-    for obj in objetos: print(obj)  # POLIMORFISMO: etiqueta() de cada modelo.
+
+def mostrar_resultado(exito, mensaje):
+    # Los controladores devuelven la TUPLA (exito, mensaje)
+    if exito:
+        imprimir_exito(mensaje)
+    else:
+        imprimir_error(mensaje)
+
+
+def mostrar_lista(objetos, vacio="No hay registros todavía."):
+    """Sirve para estudiantes, materias y matriculas: cada modelo sabe mostrarse."""
+    if not objetos:
+        imprimir_info(vacio)
+        return
+    for objeto in objetos:
+        print(f"  {objeto}")
+    imprimir_info(f"Total: {len(objetos)}")
+
 
 def mostrar_detalle(objeto):
-    print(objeto if objeto else 'Registro no encontrado')
+    # Recorre el DICCIONARIO del objeto: clave y valor a la vez
+    for clave, valor in objeto.a_diccionario().items():
+        print(f"  {str(clave).replace('_', ' ').capitalize():<16}: {valor}")
 
-def menu_crud(titulo, campos, crear, todos, buscar, obtener, actualizar, eliminar):
+
+# =====================================================================
+# MENÚ DE ESTUDIANTES
+# =====================================================================
+
+def crear_estudiante():
+    imprimir_titulo("CREAR ESTUDIANTE")
+    datos = {
+        "nombre": input("Nombre: "),
+        "apellido": input("Apellido: "),
+        "email": input("Email: "),
+        "carnet": input("Carnet: "),
+        "carrera": input("Carrera: "),
+    }
+    mostrar_resultado(*estudiantes.crear(datos))
+    pausa()
+
+
+def listar_estudiantes():
+    imprimir_titulo("ESTUDIANTES")
+    mostrar_lista(estudiantes.leer(), "Todavía no hay estudiantes.")
+    pausa()
+
+
+def buscar_estudiante():
+    imprimir_titulo("BUSCAR ESTUDIANTE")
+    termino = input("Nombre, email, carnet o carrera: ")
+    encontrados = estudiantes.buscar(termino)
+    mostrar_lista(encontrados, f"Ningún estudiante coincide con '{termino}'.")
+    pausa()
+
+
+def ver_estudiante():
+    imprimir_titulo("VER ESTUDIANTE POR ID")
+    estudiante = estudiantes.obtener(pedir_entero("Id: "))
+    if estudiante is None:
+        imprimir_error("No encontrado")
+    else:
+        mostrar_detalle(estudiante)
+    pausa()
+
+
+def actualizar_estudiante():
+    imprimir_titulo("ACTUALIZAR ESTUDIANTE")
+    id_estudiante = pedir_entero("Id: ")
+    estudiante = estudiantes.obtener(id_estudiante)
+    if estudiante is None:
+        imprimir_error("No encontrado")
+        return pausa()
+
+    imprimir_info(f"Editando: {estudiante.etiqueta()}")
+    print("Deje en blanco lo que no quiera cambiar.\n")
+
+    cambios = {}
+    for campo in ("nombre", "apellido", "email", "carnet", "carrera"):
+        actual = getattr(estudiante, campo)
+        nuevo = input(f"{campo.capitalize()} [{actual}]: ").strip()
+        if nuevo:
+            cambios[campo] = nuevo
+
+    mostrar_resultado(*estudiantes.actualizar(id_estudiante, cambios))
+    pausa()
+
+
+def eliminar_estudiante():
+    imprimir_titulo("ELIMINAR ESTUDIANTE")
+    id_estudiante = pedir_entero("Id: ")
+    estudiante = estudiantes.obtener(id_estudiante)
+    if estudiante is None:
+        imprimir_error("No encontrado")
+        return pausa()
+
+    imprimir_info(f"Se eliminará: {estudiante.etiqueta()}")
+    if confirmar("¿Confirma?"):
+        mostrar_resultado(*estudiantes.eliminar(id_estudiante))
+    else:
+        imprimir_info("Operación cancelada")
+    pausa()
+
+
+# =====================================================================
+# MENÚ DE MATERIAS
+# =====================================================================
+
+def crear_materia():
+    imprimir_titulo("CREAR MATERIA")
+    datos = {
+        "nombre": input("Nombre: "),
+        "codigo": input("Código: "),
+        "creditos": input("Créditos: "),
+        "cupos": input("Cupos: "),
+    }
+    mostrar_resultado(*materias.crear(datos))
+    pausa()
+
+
+def listar_materias():
+    imprimir_titulo("MATERIAS")
+    mostrar_lista(materias.leer(), "Todavía no hay materias.")
+    pausa()
+
+
+def buscar_materia():
+    imprimir_titulo("BUSCAR MATERIA")
+    termino = input("Nombre: ")
+    mostrar_lista(materias.buscar(termino), "Sin coincidencias.")
+    pausa()
+
+
+def ver_materia():
+    imprimir_titulo("VER MATERIA POR ID")
+    materia = materias.obtener(pedir_entero("Id: "))
+    if materia is None:
+        imprimir_error("No encontrado")
+    else:
+        mostrar_detalle(materia)
+        imprimir_info(f"Cupos disponibles: {materia.cupos}")
+    pausa()
+
+
+def actualizar_materia():
+    imprimir_titulo("ACTUALIZAR MATERIA")
+    id_materia = pedir_entero("Id: ")
+    materia = materias.obtener(id_materia)
+    if materia is None:
+        imprimir_error("No encontrado")
+        return pausa()
+
+    imprimir_info(f"Editando: {materia.etiqueta()}")
+    print("Deje en blanco lo que no quiera cambiar.\n")
+
+    cambios = {}
+    for campo in ("nombre", "codigo", "creditos", "cupos"):
+        actual = getattr(materia, campo)
+        nuevo = input(f"{campo.capitalize()} [{actual}]: ").strip()
+        if nuevo:
+            cambios[campo] = nuevo
+
+    mostrar_resultado(*materias.actualizar(id_materia, cambios))
+    pausa()
+
+
+def eliminar_materia():
+    imprimir_titulo("ELIMINAR MATERIA")
+    id_materia = pedir_entero("Id: ")
+    materia = materias.obtener(id_materia)
+    if materia is None:
+        imprimir_error("No encontrado")
+        return pausa()
+
+    imprimir_info(f"Se eliminará: {materia.etiqueta()}")
+    if confirmar("¿Confirma?"):
+        mostrar_resultado(*materias.eliminar(id_materia))
+    else:
+        imprimir_info("Operación cancelada")
+    pausa()
+
+
+# =====================================================================
+# MENÚ DE MATRÍCULAS
+# =====================================================================
+
+def registrar_matricula():
+    imprimir_titulo("REGISTRAR MATRÍCULA")
+    imprimir_info("Estudiantes:")
+    mostrar_lista(estudiantes.leer())
+    imprimir_info("Materias:")
+    mostrar_lista(materias.leer())
+
+    datos = {
+        "estudiante_id": pedir_entero("\nId del estudiante: "),
+        "materia_id": pedir_entero("Id de la materia: "),
+        "periodo": input("Periodo (ej. 2026-1): "),
+    }
+    if datos["estudiante_id"] is None or datos["materia_id"] is None:
+        imprimir_error("Todos los datos deben ser números enteros")
+        return pausa()
+
+    mostrar_resultado(*matriculas.crear(datos))
+    pausa()
+
+
+def listar_matriculas():
+    imprimir_titulo("MATRÍCULAS")
+    mostrar_lista(matriculas.leer(), "Todavía no hay matriculas.")
+    pausa()
+
+
+def ver_certificado():
+    imprimir_titulo("CERTIFICADO")
+    texto = matriculas.certificado(pedir_entero("Id de la matricula: "))
+    if texto is None:
+        imprimir_error("No existe esa matricula")
+    else:
+        print(texto)
+    pausa()
+
+
+def retirar_matricula():
+    imprimir_titulo("RETIRAR MATRÍCULA")
+    id_matricula = pedir_entero("Id de la matricula: ")
+    if id_matricula and confirmar("Se liberará el cupo. ¿Confirma?"):
+        mostrar_resultado(*matriculas.eliminar(id_matricula))
+    else:
+        imprimir_info("Operación cancelada")
+    pausa()
+
+
+def registrar_nota():
+    imprimir_titulo("REGISTRAR NOTA")
+    id_matricula = pedir_entero("Id de la matrícula: ")
+    nota = input("Nota (0 a 20): ")
+    mostrar_resultado(*matriculas.registrar_nota(id_matricula, nota))
+    pausa()
+
+
+def resumen():
+    imprimir_titulo("RESUMEN")
+    print(f"  Estudiantes        : {len(estudiantes.leer())}")
+    print(f"  Carreras           : {', '.join(estudiantes.carreras()) or '-'}")
+    print(f"  Materias           : {len(materias.leer())}")
+    sin_cupo = materias.materias_sin_cupo()
+    print(f"  Materias sin cupo  : {', '.join(m.nombre for m in sin_cupo) or 'ninguna'}")
+    print(f"  Matrículas         : {len(matriculas.leer())}")
+    print(f"  Aprobadas          : {matriculas.aprobadas()}")
+    pausa()
+
+
+# =====================================================================
+# MENÚS: DICCIONARIOS tecla -> (texto, función)
+# =====================================================================
+
+MENU_ESTUDIANTES = {
+    "1": ("Crear estudiante", crear_estudiante),
+    "2": ("Ver todos", listar_estudiantes),
+    "3": ("Buscar", buscar_estudiante),
+    "4": ("Ver por id", ver_estudiante),
+    "5": ("Actualizar", actualizar_estudiante),
+    "6": ("Eliminar", eliminar_estudiante),
+    "0": ("Volver", None),
+}
+
+MENU_MATERIAS = {
+    "1": ("Crear materia", crear_materia),
+    "2": ("Ver todos", listar_materias),
+    "3": ("Buscar", buscar_materia),
+    "4": ("Ver por id", ver_materia),
+    "5": ("Actualizar", actualizar_materia),
+    "6": ("Eliminar", eliminar_materia),
+    "0": ("Volver", None),
+}
+
+MENU_MATRÍCULAS = {
+    "1": ("Matricular", registrar_matricula),
+    "2": ("Ver todas", listar_matriculas),
+    "3": ("Registrar nota", registrar_nota),
+    "4": ("Ver certificado", ver_certificado),
+    "5": ("Retirar matrícula", retirar_matricula),
+    "0": ("Volver", None),
+}
+
+
+def ejecutar_menu(titulo, opciones):
+    """Un solo bucle para los tres submenús."""
     while True:
-        print(f'\n--- {titulo} ---\n1. Crear\n2. Ver todos\n3. Buscar\n4. Ver por ID\n5. Actualizar\n6. Eliminar\n0. Volver')
-        op = input('Opción: ').strip()
-        if op == '0': return
-        if op == '1': print(*crear(pedir_campos(campos)))
-        elif op == '2': mostrar_lista(todos())
-        elif op == '3': mostrar_lista(buscar(input('Buscar: ')))
-        elif op == '4':
-            ident = pedir_id()
-            if ident is not None: mostrar_detalle(obtener(ident))
-        elif op == '5':
-            ident = pedir_id()
-            if ident is None: continue
-            obj = obtener(ident)
-            if obj: print(*actualizar(ident,pedir_campos(campos,obj)))
-            else: print('Registro no encontrado')
-        elif op == '6':
-            ident = pedir_id()
-            if ident is not None: print(*eliminar(ident))
-        else: print('Opción inválida')
+        imprimir_titulo(titulo)
+        for tecla, (texto, _funcion) in opciones.items():
+            print(f"  {tecla}. {texto}")
+        print()
 
-def menu_matriculas():
-    while True:
-        print('\n--- MATRÍCULAS ---\n1. Matricular\n2. Ver todas\n3. Registrar nota\n4. Ver certificado\n5. Retirar matrícula\n0. Volver')
-        op = input('Opción: ').strip()
-        if op == '0': return
-        if op == '1': print(*c.crear_matricula(pedir_campos(('estudiante_id','materia_id','periodo'))))
-        elif op == '2': mostrar_lista(c.obtener_matriculas())
-        elif op == '3':
-            ident = pedir_id()
-            if ident is not None: print(*c.registrar_nota(ident,input('Nota (0 a 20): ')))
-        elif op == '4':
-            ident = pedir_id()
-            if ident is not None: print(c.certificado(ident) or 'Certificado no disponible')
-        elif op == '5':
-            ident = pedir_id()
-            if ident is not None: print(*c.retirar_matricula(ident))
-        else: print('Opción inválida')
+        tecla = input("Opción: ").strip()
+        if tecla not in opciones:               # búsqueda por clave: instantánea
+            imprimir_error("Opción no válida")
+            pausa()
+            continue
 
-def mostrar_resumen():
-    r = c.resumen()
-    print('\n--- RESUMEN ---')
-    print('Estudiantes:',r['estudiantes'])
-    print('Carreras distintas:',', '.join(r['carreras']) or 'Ninguna')
-    print('Materias sin cupo:')
-    mostrar_lista(r['materias_sin_cupo'])
-    print('Matrículas aprobadas:',r['matriculas_aprobadas'])
+        _texto, funcion = opciones[tecla]
+        if funcion is None:                      # la opción "Volver"
+            break
+        funcion()
+
 
 def main():
     while True:
-        print('\n=== SISTEMA ACADÉMICO ===\n1. Estudiantes\n2. Materias\n3. Matrículas\n4. Resumen\n0. Salir')
-        op = input('Opción: ').strip()
-        if op == '0': break
-        if op == '1':
-            menu_crud('ESTUDIANTES',('nombre','apellido','email','carnet','carrera'),c.crear_estudiante,c.obtener_estudiantes,c.buscar_estudiantes,c.obtener_estudiante,c.actualizar_estudiante,c.eliminar_estudiante)
-        elif op == '2':
-            menu_crud('MATERIAS',('nombre','codigo','creditos','cupos'),c.crear_materia,c.obtener_materias,c.buscar_materias,c.obtener_materia,c.actualizar_materia,c.eliminar_materia)
-        elif op == '3': menu_matriculas()
-        elif op == '4': mostrar_resumen()
-        else: print('Opción inválida')
+        imprimir_titulo("SISTEMA ACADÉMICO")
+        print("  1. Estudiantes")
+        print("  2. Materias")
+        print("  3. Ventas")
+        print("  4. Resumen")
+        print("  0. Salir\n")
 
-if __name__ == '__main__': main()
+        tecla = input("Opción: ").strip()
+        if tecla == "1":
+            ejecutar_menu("ESTUDIANTES", MENU_ESTUDIANTES)
+        elif tecla == "2":
+            ejecutar_menu("MATERIAS", MENU_MATERIAS)
+        elif tecla == "3":
+            ejecutar_menu("MATRÍCULAS", MENU_MATRÍCULAS)
+        elif tecla == "4":
+            resumen()
+        elif tecla == "0":
+            imprimir_info("¡Hasta luego! 👋")
+            break
+        else:
+            imprimir_error("Opción no válida")
+            pausa()
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nPrograma interrumpido por el usuario.")
