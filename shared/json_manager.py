@@ -1,17 +1,32 @@
 import json
-from pathlib import Path
+import os
+
 
 class GestorJSON:
-    """Única clase que lee y escribe archivos JSON."""
+    """Lee y guarda una lista de diccionarios. Es la única parte que toca el disco."""
+
     def __init__(self, ruta):
-        self.ruta = Path(ruta)
-        self.ruta.parent.mkdir(parents=True, exist_ok=True)
+        self.ruta = ruta
+        carpeta = os.path.dirname(ruta)
+        if carpeta and not os.path.exists(carpeta):
+            os.makedirs(carpeta)
+
     def leer(self):
-        if not self.ruta.exists(): return []
-        with self.ruta.open(encoding='utf-8') as archivo:
-            datos = json.load(archivo)
-        if not isinstance(datos, list): raise ValueError('El JSON debe contener una lista')
-        return datos
+        # Devuelve SIEMPRE una lista: vacía si el archivo no existe o está dañado
+        if not os.path.exists(self.ruta):
+            return []
+        try:
+            with open(self.ruta, "r", encoding="utf-8") as archivo:
+                datos = json.load(archivo)
+            return datos if isinstance(datos, list) else []
+        except (json.JSONDecodeError, OSError):
+            # Capturamos errores concretos, nunca un "except:" pelado
+            return []
+
     def guardar(self, datos):
-        with self.ruta.open('w', encoding='utf-8') as archivo:
-            json.dump(datos, archivo, indent=2, ensure_ascii=False)
+        try:
+            with open(self.ruta, "w", encoding="utf-8") as archivo:
+                json.dump(datos, archivo, ensure_ascii=False, indent=2)
+            return True
+        except (TypeError, OSError):
+            return False
